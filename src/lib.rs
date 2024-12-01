@@ -1,4 +1,5 @@
 mod duplicated;
+mod meta_list;
 mod partial;
 
 use proc_macro::TokenStream;

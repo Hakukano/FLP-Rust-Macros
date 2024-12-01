@@ -9,6 +9,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Ident, Type, Visibility};
 
+use crate::meta_list::MetaList;
+
 #[derive(FromField)]
 #[darling(attributes(partial))]
 struct Field {
@@ -18,6 +20,9 @@ struct Field {
 
     #[darling(default)]
     included: PathList,
+
+    #[darling(default)]
+    metas: MetaList,
 }
 
 #[derive(FromDeriveInput)]
@@ -30,7 +35,7 @@ struct Options {
     structs: PathList,
 
     #[darling(default)]
-    derives: PathList,
+    metas: MetaList,
 }
 
 pub fn handle(token: TokenStream) -> TokenStream {
@@ -52,7 +57,15 @@ pub fn handle(token: TokenStream) -> TokenStream {
              vis,
              ty,
              included,
+             metas,
          }| {
+            let metas = if metas.is_empty() {
+                quote! {}
+            } else {
+                quote! {
+                    #(#[#metas])*
+                }
+            };
             included.iter().for_each(|new_struct| {
                 let new_struct = new_struct
                     .get_ident()
@@ -60,6 +73,7 @@ pub fn handle(token: TokenStream) -> TokenStream {
                     .to_string();
                 let ident = ident.clone().expect("Ident is needed for the field");
                 let field = quote! {
+                    #metas
                     #vis #ident: #ty,
                 };
                 if let Some(v) = acc.get_mut(&new_struct) {
@@ -72,23 +86,16 @@ pub fn handle(token: TokenStream) -> TokenStream {
         },
     );
 
+    let metas = options.metas;
+    let metas = if metas.is_empty() {
+        quote! {}
+    } else {
+        quote! {
+            #(#[#metas])*
+        }
+    };
+
     let new_structs = options.structs.iter().map(|name| {
-        let derives = options
-            .derives
-            .iter()
-            .map(|derive| {
-                quote! {
-                    #derive,
-                }
-            })
-            .collect::<Vec<_>>();
-        let derives = if derives.is_empty() {
-            quote! {}
-        } else {
-            quote! {
-                #[derive(#(#derives)*)]
-            }
-        };
         let k = name
             .get_ident()
             .expect("Only ident is supported for structs")
@@ -96,7 +103,7 @@ pub fn handle(token: TokenStream) -> TokenStream {
         let v = Vec::new();
         let fields = struct_fields_map.get(&k).unwrap_or(&v);
         quote! {
-            #derives
+            #metas
             #struct_vis struct #name {
                 #(#fields)*
             }
