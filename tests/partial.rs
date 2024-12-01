@@ -1,31 +1,41 @@
 use flp_rust_macros::Partial;
-use utoipa::ToSchema;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 #[derive(Partial)]
-#[partial(structs(Ab, Ac, Bc), derives(Clone, ToSchema))]
+#[partial(
+    structs(Ab, Ac, Bc),
+    metas(derive(Clone, Deserialize, Serialize), serde(rename_all = "UPPERCASE"))
+)]
 pub struct Details {
     #[partial(included(Ab, Ac))]
     pub a: u8,
     #[partial(included(Ab, Bc))]
-    b: &'static str,
-    #[partial(included(Bc, Ac))]
-    pub c: Vec<&'static str>,
+    b: String,
+    #[partial(included(Bc, Ac), metas(serde(rename = "cs")))]
+    pub c: Vec<String>,
 }
 
 #[test]
 fn generated_all() {
     let details = Details {
         a: 1,
-        b: "b",
-        c: vec!["c"],
+        b: "b".to_string(),
+        c: vec!["c".to_string()],
     };
 
-    let ab = Ab { a: 1, b: "b" };
-    let bc = Bc {
-        b: "b",
-        c: vec!["c"],
+    let ab = Ab {
+        a: 1,
+        b: "b".to_string(),
     };
-    let ac = Ac { a: 1, c: vec!["c"] };
+    let bc = Bc {
+        b: "b".to_string(),
+        c: vec!["c".to_string()],
+    };
+    let ac = Ac {
+        a: 1,
+        c: vec!["c".to_string()],
+    };
 
     assert_eq!(details.a, 1);
     assert_eq!(details.b, "b");
@@ -33,11 +43,17 @@ fn generated_all() {
     assert_eq!(ab.a, 1);
     assert_eq!(ab.b, "b");
     assert_eq!(ab.clone().a, ab.a);
-    assert_eq!(Ab::schema().0, "Ab");
+    assert_eq!(serde_json::to_value(ab).unwrap(), json!({"A": 1, "B": "b"}));
     assert_eq!(bc.b, "b");
     assert_eq!(bc.c, vec!["c"]);
-    assert_eq!(Bc::schema().0, "Bc");
+    assert_eq!(
+        serde_json::to_value(bc).unwrap(),
+        json!({"B": "b", "cs": ["c"]})
+    );
     assert_eq!(ac.a, 1);
     assert_eq!(ac.c, vec!["c"]);
-    assert_eq!(Ac::schema().0, "Ac");
+    assert_eq!(
+        serde_json::to_value(ac).unwrap(),
+        json!({"A": 1, "cs": ["c"]})
+    );
 }
